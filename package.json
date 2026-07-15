@@ -1,0 +1,50 @@
+{
+  "name": "agentsnippet",
+  "version": "0.1.1",
+  "description": "Expand reusable snippets into standard AGENTS.md files.",
+  "type": "module",
+  "bin": {
+    "agentsnippet": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "SPEC.md"
+  ],
+  "scripts": {
+    "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.json && node scripts/finalize-build.mjs",
+    "test": "npm run build && node --import tsx --test test/*.test.ts",
+    "test:package": "npm run build && node scripts/check-package.mjs",
+    "test:all": "npm test && npm run test:package",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run test:all"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "agents-md",
+    "markdown",
+    "include",
+    "cli"
+  ],
+  "license": "MIT",
+  "author": "Favo Yang",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/favoyang/agentsnippet.git"
+  },
+  "bugs": {
+    "url": "https://github.com/favoyang/agentsnippet/issues"
+  },
+  "homepage": "https://github.com/favoyang/agentsnippet#readme",
+  "dependencies": {
+    "mdast-util-from-markdown": "^2.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2"
+  }
+}
