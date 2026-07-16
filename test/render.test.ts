@@ -1,11 +1,29 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { describe, it } from "node:test";
 import { renderTemplate } from "../src/render.js";
+import { resolveLocalPath } from "../src/sources.js";
 import { temporaryDirectory } from "./helpers.js";
 
 describe("local rendering", () => {
+  it("resolves paths beginning with ~/ from the home directory", () => {
+    const homeDirectory = resolve("home", "example");
+    const parentFilePath = resolve("project", "AGENTS.template.md");
+    assert.equal(
+      resolveLocalPath("~/shared/testing.md", parentFilePath, homeDirectory),
+      join(homeDirectory, "shared", "testing.md"),
+    );
+    assert.equal(
+      resolveLocalPath("~", parentFilePath, homeDirectory),
+      resolve(dirname(parentFilePath), "~"),
+    );
+    assert.equal(
+      resolveLocalPath("~//shared/testing.md", parentFilePath, homeDirectory),
+      join(homeDirectory, "shared", "testing.md"),
+    );
+  });
+
   it("expands nested local snippets and normalizes line endings", async (context) => {
     const directory = await temporaryDirectory(context);
     await mkdir(join(directory, "snippets"));

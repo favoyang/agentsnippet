@@ -1,5 +1,6 @@
 import { readFile, realpath, stat } from "node:fs/promises";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { homedir } from "node:os";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { AgentSnippetError } from "./errors.js";
 import { GitSourceResolver } from "./git-source.js";
 import { loadHttpSource, type FetchImplementation } from "./http-source.js";
@@ -38,7 +39,7 @@ export class SourceResolver {
       return await this.git.resolveRelative(reference, parent);
     }
 
-    const filePath = isAbsolute(reference) ? reference : resolve(dirname(parent.filePath), reference);
+    const filePath = resolveLocalPath(reference, parent.filePath);
     return await this.#loadLocal(filePath);
   }
 
@@ -71,4 +72,13 @@ export class SourceResolver {
       display: filePath,
     };
   }
+}
+
+export function resolveLocalPath(
+  reference: string,
+  parentFilePath: string,
+  homeDirectory = homedir(),
+): string {
+  if (reference.startsWith("~/")) return join(homeDirectory, reference.slice(2));
+  return isAbsolute(reference) ? reference : resolve(dirname(parentFilePath), reference);
 }

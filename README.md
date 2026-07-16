@@ -6,7 +6,7 @@ coding agent. No configuration file is needed.
 
 ## Quick start
 
-Create a snippet at `.agents/core.md`:
+Create a snippet in your project, such as `.agents/core.md`:
 
 ```md
 ## Working agreement
@@ -38,10 +38,18 @@ Git source.
 
 ### Local files
 
-Relative paths are resolved from the file that contains the include:
+Relative paths are resolved from the file containing the include. For example,
+if `AGENTS.template.md` is in the project root:
 
 ```md
-<!-- @agentsnippet "../shared/testing.md" -->
+<!-- @agentsnippet "./.agents/testing.md" -->
+```
+
+Absolute paths and paths beginning with `~/` are also supported:
+
+```md
+<!-- @agentsnippet "/path/to/shared/testing.md" -->
+<!-- @agentsnippet "~/projects/shared/testing.md" -->
 ```
 
 ### HTTP URLs
@@ -63,7 +71,13 @@ Select a branch and a file from any Git repository:
 ```
 
 The part after `#` has the form `<ref>:<path>`. The ref can be a branch, tag,
-or commit. Use a full commit hash when the generated output must stay fixed:
+or commit. For example, you can select a versioned tag:
+
+```md
+<!-- @agentsnippet "git+https://github.com/example/agent-snippets.git#v1.0.0:snippets/testing.md" -->
+```
+
+Use a full commit hash when the generated output must stay fixed:
 
 ```md
 <!-- @agentsnippet "git+https://github.com/example/agent-snippets.git#51d462976d84fdea54b47d80dcabbf680badcdb8:snippets/testing.md" -->
@@ -75,9 +89,9 @@ Private repositories use your existing Git and SSH authentication:
 <!-- @agentsnippet "git+ssh://git@github.com/company/agent-snippets.git#main:internal/security.md" -->
 ```
 
-Snippets can include other snippets. Missing sources, include cycles, malformed
-directives, unsafe Git paths, and network failures stop generation and show the
-include trace.
+Snippets can include other snippets. If a source is missing, a cycle is
+detected, a directive is malformed, a Git path is unsafe, or a network request
+fails, generation stops and shows the include trace.
 
 ## Choose a directory
 
@@ -111,21 +125,12 @@ npx agentsnippet --check -r
 For CI, pin the package version so the check uses the same release every time:
 
 ```yaml
-- run: npx --yes agentsnippet@0.1.1 --check -r
+- run: npx --yes agentsnippet@0.1.2 --check -r
 ```
 
-## Command reference
+## Spec
 
-```text
-npx agentsnippet [options] [directory]
-
--r, --recursive   Process nested AGENTS.template.md files
-    --check       Verify outputs without writing
--h, --help        Show help
--v, --version     Show version
-```
-
-See [SPEC.md](./SPEC.md) for the exact v1 behavior and limits.
+See [SPEC.md](./SPEC.md) for the v1 behavior and limits.
 
 ## Security
 

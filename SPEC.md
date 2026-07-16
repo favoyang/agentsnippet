@@ -49,8 +49,10 @@ repository. Full 40- or 64-character commit IDs are reused from the local cache;
 other refs are fetched on each process run. Git authentication is inherited from
 the user's normal Git configuration.
 
-Every other source is a local filesystem path resolved relative to the file
-containing the directive. Nested local paths use normal filesystem semantics.
+Every other source is a local filesystem path. Paths beginning with `~/` are
+resolved from the user's home directory; other relative paths are resolved from
+the file containing the directive. Absolute and nested local paths use normal
+filesystem semantics.
 
 ## CLI
 
