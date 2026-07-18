@@ -1,5 +1,5 @@
 import { fromMarkdown } from "mdast-util-from-markdown";
-import { AgentSnippetError } from "./errors.js";
+import { safeAgentSnippetError } from "./errors.js";
 
 export interface IncludeDirective {
   source: string;
@@ -33,7 +33,7 @@ export function findIncludeDirectives(markdown: string, display: string): Includ
 
     const nodeStart = node.position.start.offset;
     if (nodeStart === undefined) {
-      throw new AgentSnippetError(`Cannot locate an agentsnippet directive in ${display}.`);
+      throw safeAgentSnippetError(`Cannot locate an agentsnippet directive in ${display}.`);
     }
 
     for (const comment of node.value.matchAll(HTML_COMMENT_PATTERN)) {
@@ -49,7 +49,7 @@ export function findIncludeDirectives(markdown: string, display: string): Includ
       const match = DIRECTIVE_PATTERN.exec(lineText);
 
       if (!match?.[1]) {
-        throw new AgentSnippetError(
+        throw safeAgentSnippetError(
           `Malformed agentsnippet directive in ${display}:${line}. ` +
             'Expected <!-- @agentsnippet "<source>" --> on its own line.',
         );

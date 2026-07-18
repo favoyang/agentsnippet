@@ -168,6 +168,19 @@ describe("local rendering", () => {
     assert.equal(output.outputPath, join(directory, "AGENTS.md"));
   });
 
+  it("preserves malformed directive diagnostics from nested snippets", async (context) => {
+    const directory = await temporaryDirectory(context);
+    await writeFile(join(directory, "AGENTS.template.md"), '<!-- @agentsnippet "./part.md" -->\n');
+    await writeFile(join(directory, "part.md"), "<!-- @agentsnippet ./missing.md -->\n");
+
+    await assert.rejects(renderTemplate(join(directory, "AGENTS.template.md")), (error: unknown) => {
+      assert.match(String(error), /Malformed agentsnippet directive .*part\.md:1/);
+      assert.match(String(error), /Include chain:/);
+      assert.doesNotMatch(String(error), /Backend source read failed/);
+      return true;
+    });
+  });
+
   it("reports cycles with the full include chain", async (context) => {
     const directory = await temporaryDirectory(context);
     await writeFile(join(directory, "AGENTS.template.md"), '<!-- @agentsnippet "./a.md" -->\n');
