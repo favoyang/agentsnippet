@@ -1,4 +1,4 @@
-import { AgentSnippetError } from "./errors.js";
+import { safeAgentSnippetError } from "./errors.js";
 import { redactUrl } from "./git-source.js";
 import {
   HTTP_MAX_REDIRECTS,
@@ -8,6 +8,25 @@ import {
 } from "./types.js";
 
 export type FetchImplementation = typeof fetch;
+
+const SAFE_HTTP_ERROR_CODES = new Set([
+  "CERT_HAS_EXPIRED",
+  "DEPTH_ZERO_SELF_SIGNED_CERT",
+  "EAI_AGAIN",
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "ENOTFOUND",
+  "ERR_TLS_CERT_ALTNAME_INVALID",
+  "ETIMEDOUT",
+  "SELF_SIGNED_CERT_IN_CHAIN",
+  "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+  "UND_ERR_BODY_TIMEOUT",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_HEADERS_TIMEOUT",
+  "UND_ERR_SOCKET",
+]);
 
 export async function loadHttpSource(
   input: string,
@@ -28,9 +47,12 @@ export async function loadHttpSource(
         });
       } catch (error) {
         if (controller.signal.aborted) {
-          throw new AgentSnippetError(`HTTP source timed out: ${redactUrl(current)}`);
+          throw safeAgentSnippetError(`HTTP source timed out: ${redactUrl(current)}`, {
+            cause: error,
+          });
         }
-        throw new AgentSnippetError(`Could not fetch HTTP source: ${redactUrl(current)}`, {
+        const detail = safeHttpErrorCodes(error);
+        throw safeAgentSnippetError(`Could not fetch HTTP source: ${redactUrl(current)}${detail ? `: ${detail}` : ""}`, {
           cause: error,
         });
       }
@@ -38,33 +60,35 @@ export async function loadHttpSource(
       if (isRedirect(response.status)) {
         const location = response.headers.get("location");
         if (!location) {
-          throw new AgentSnippetError(`HTTP redirect has no Location header: ${redactUrl(current)}`);
+          throw safeAgentSnippetError(`HTTP redirect has no Location header: ${redactUrl(current)}`);
         }
         if (redirects === HTTP_MAX_REDIRECTS) {
-          throw new AgentSnippetError(`HTTP source exceeded ${HTTP_MAX_REDIRECTS} redirects: ${redactUrl(input)}`);
+          throw safeAgentSnippetError(`HTTP source exceeded ${HTTP_MAX_REDIRECTS} redirects: ${redactUrl(input)}`);
         }
         const next = validateHttpUrl(new URL(location, current).toString());
         if (new URL(current).protocol === "https:" && new URL(next).protocol !== "https:") {
-          throw new AgentSnippetError(`Refusing an HTTPS-to-HTTP redirect for ${redactUrl(input)}.`);
+          throw safeAgentSnippetError(`Refusing an HTTPS-to-HTTP redirect for ${redactUrl(input)}.`);
         }
         current = next;
         continue;
       }
 
       if (!response.ok) {
-        throw new AgentSnippetError(`HTTP ${response.status} while fetching ${redactUrl(current)}.`);
+        throw safeAgentSnippetError(`HTTP ${response.status} while fetching ${redactUrl(current)}.`);
       }
 
       const contentLength = response.headers.get("content-length");
       if (contentLength && Number.parseInt(contentLength, 10) > MAX_SOURCE_BYTES) {
-        throw new AgentSnippetError(`HTTP source exceeds the ${MAX_SOURCE_BYTES}-byte limit: ${redactUrl(current)}`);
+        throw safeAgentSnippetError(`HTTP source exceeds the ${MAX_SOURCE_BYTES}-byte limit: ${redactUrl(current)}`);
       }
       const body = await readBoundedBody(response, current);
       let content: string;
       try {
         content = new TextDecoder("utf-8", { fatal: true }).decode(body);
-      } catch {
-        throw new AgentSnippetError(`HTTP source is not valid UTF-8: ${redactUrl(current)}`);
+      } catch (error) {
+        throw safeAgentSnippetError(`HTTP source is not valid UTF-8: ${redactUrl(current)}`, {
+          cause: error,
+        });
       }
       return {
         content,
@@ -77,21 +101,37 @@ export async function loadHttpSource(
     clearTimeout(timer);
   }
 
-  throw new AgentSnippetError(`Could not fetch HTTP source: ${redactUrl(input)}`);
+  throw safeAgentSnippetError(`Could not fetch HTTP source: ${redactUrl(input)}`);
+}
+
+function safeHttpErrorCodes(error: unknown): string {
+  const codes: string[] = [];
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && current; depth += 1) {
+    try {
+      if (typeof current !== "object" || current === null) break;
+      const code = Reflect.get(current, "code") as unknown;
+      if (typeof code === "string" && SAFE_HTTP_ERROR_CODES.has(code)) codes.push(code);
+      current = Reflect.get(current, "cause") as unknown;
+    } catch {
+      break;
+    }
+  }
+  return [...new Set(codes)].join(", ");
 }
 
 function validateHttpUrl(value: string): string {
   let url: URL;
   try {
     url = new URL(value);
-  } catch {
-    throw new AgentSnippetError(`Invalid HTTP source: ${redactUrl(value)}`);
+  } catch (error) {
+    throw safeAgentSnippetError(`Invalid HTTP source: ${redactUrl(value)}`, { cause: error });
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new AgentSnippetError(`Unsupported HTTP protocol: ${url.protocol}`);
+    throw safeAgentSnippetError(`Unsupported HTTP protocol: ${url.protocol}`);
   }
   if (url.username || url.password) {
-    throw new AgentSnippetError(`Credentials are not allowed in direct HTTP source URLs: ${redactUrl(value)}`);
+    throw safeAgentSnippetError(`Credentials are not allowed in direct HTTP source URLs: ${redactUrl(value)}`);
   }
   url.hash = "";
   return url.toString();
@@ -107,8 +147,20 @@ async function readBoundedBody(response: Response, url: string): Promise<Uint8Ar
     if (done) break;
     bytes += value.byteLength;
     if (bytes > MAX_SOURCE_BYTES) {
-      await reader.cancel();
-      throw new AgentSnippetError(`HTTP source exceeds the ${MAX_SOURCE_BYTES}-byte limit: ${redactUrl(url)}`);
+      const primary = safeAgentSnippetError(
+        `HTTP source exceeds the ${MAX_SOURCE_BYTES}-byte limit: ${redactUrl(url)}`,
+      );
+      try {
+        await reader.cancel();
+      } catch (cancelError) {
+        const combined = new AggregateError(
+          [primary, cancelError],
+          "HTTP body limit and cancellation both failed.",
+          { cause: primary },
+        );
+        throw safeAgentSnippetError(primary.message, { cause: combined });
+      }
+      throw primary;
     }
     chunks.push(value);
   }

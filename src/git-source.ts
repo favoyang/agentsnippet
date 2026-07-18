@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { mkdir, stat } from "node:fs/promises";
 import { homedir, platform } from "node:os";
 import { dirname, join, posix } from "node:path";
-import { AgentSnippetError } from "./errors.js";
-import { runProcess } from "./process.js";
+import { AgentSnippetError, safeAgentSnippetError } from "./errors.js";
+import { runProcess, type ProcessResult } from "./process.js";
 import { MAX_SOURCE_BYTES, type GitContext, type SourceDocument } from "./types.js";
 
 const GIT_TIMEOUT_MS = 60_000;
@@ -49,7 +49,7 @@ export class GitSourceResolver {
 
   async resolveRelative(reference: string, parent: GitContext): Promise<SourceDocument> {
     if (reference.startsWith("/")) {
-      throw new AgentSnippetError(`Git include paths must be repository-relative: ${reference}`);
+      throw safeAgentSnippetError(`Git include paths must be repository-relative: ${reference}`);
     }
     const filePath = normalizeRepositoryPath(posix.join(posix.dirname(parent.filePath), reference));
     return await this.readFromContext({ ...parent, filePath }, filePath);
@@ -65,7 +65,7 @@ export class GitSourceResolver {
       filePath,
     ]);
     if (treeEntry.stdout.length === 0) {
-      throw new AgentSnippetError(
+      throw safeAgentSnippetError(
         `Git source does not contain ${displayPath} at ${shortCommit(context.commit)} ` +
           `in ${context.repositoryDisplay}.`,
       );
@@ -76,17 +76,17 @@ export class GitSourceResolver {
     const header = tabIndex === -1 ? metadata : metadata.slice(0, tabIndex);
     const [mode, type] = header.split(/\s+/, 3);
     if (mode === "120000") {
-      throw new AgentSnippetError(`Git source path is a symlink and cannot be included: ${displayPath}`);
+      throw safeAgentSnippetError(`Git source path is a symlink and cannot be included: ${displayPath}`);
     }
     if (type !== "blob" || (mode !== "100644" && mode !== "100755")) {
-      throw new AgentSnippetError(`Git source path is not a regular file: ${displayPath}`);
+      throw safeAgentSnippetError(`Git source path is not a regular file: ${displayPath}`);
     }
 
     const objectName = `${context.commit}:${filePath}`;
     const sizeResult = await git(context.repositoryCachePath, ["cat-file", "-s", objectName]);
     const size = Number.parseInt(sizeResult.stdout.toString("utf8").trim(), 10);
     if (!Number.isSafeInteger(size) || size > MAX_SOURCE_BYTES) {
-      throw new AgentSnippetError(
+      throw safeAgentSnippetError(
         `Git source exceeds the ${MAX_SOURCE_BYTES}-byte limit: ${displayPath}`,
       );
     }
@@ -121,7 +121,9 @@ export class GitSourceResolver {
         timeoutMs: GIT_TIMEOUT_MS,
       });
       if (initialized.code !== 0) {
-        throw new AgentSnippetError(`Could not initialize the agentsnippet Git cache.`);
+        throw safeAgentSnippetError(`Could not initialize the agentsnippet Git cache.`, {
+          cause: gitBackendError(initialized),
+        });
       }
     }
 
@@ -136,7 +138,7 @@ export class GitSourceResolver {
     }
 
     if (parsed.ref.startsWith("-")) {
-      throw new AgentSnippetError(`Git refs cannot begin with '-': ${parsed.ref}`);
+      throw safeAgentSnippetError(`Git refs cannot begin with '-': ${parsed.ref}`);
     }
     const fetched = await runProcess(
       "git",
@@ -144,10 +146,9 @@ export class GitSourceResolver {
       { timeoutMs: GIT_TIMEOUT_MS, maxOutputBytes: 1024 * 1024 },
     );
     if (fetched.code !== 0) {
-      const detail = sanitizeGitError(fetched.stderr.toString("utf8"), parsed.repositoryUrl).trim();
-      throw new AgentSnippetError(
-        `Could not fetch ${parsed.ref} from ${parsed.repositoryDisplay}${detail ? `: ${detail}` : "."}`,
-      );
+      throw safeAgentSnippetError(`Could not fetch ${parsed.ref} from ${parsed.repositoryDisplay}.`, {
+        cause: gitBackendError(fetched),
+      });
     }
 
     const commit = await revParse(cachePath, "FETCH_HEAD");
@@ -162,10 +163,9 @@ async function remoteObjectFormat(parsed: ParsedGitSource): Promise<"sha1" | "sh
     { timeoutMs: GIT_TIMEOUT_MS, maxOutputBytes: 1024 * 1024 },
   );
   if (result.code !== 0) {
-    const detail = sanitizeGitError(result.stderr.toString("utf8"), parsed.repositoryUrl).trim();
-    throw new AgentSnippetError(
-      `Could not inspect ${parsed.repositoryDisplay}${detail ? `: ${detail}` : "."}`,
-    );
+    throw safeAgentSnippetError(`Could not inspect ${parsed.repositoryDisplay}.`, {
+      cause: gitBackendError(result),
+    });
   }
 
   const objectId = result.stdout.toString("utf8").match(/^([0-9a-f]{40}|[0-9a-f]{64})\s/im)?.[1];
@@ -188,8 +188,7 @@ async function git(cachePath: string, args: string[], options: GitOptions = {}) 
     processOptions,
   );
   if (result.code !== 0 && !options.allowFailure) {
-    const detail = result.stderr.toString("utf8").trim();
-    throw new AgentSnippetError(`Git command failed${detail ? `: ${detail}` : "."}`);
+    throw safeAgentSnippetError("Git command failed.", { cause: gitBackendError(result) });
   }
   return result;
 }
@@ -201,7 +200,7 @@ async function revParse(cachePath: string, ref: string): Promise<string> {
 
 export function parseGitSource(reference: string): ParsedGitSource {
   if (!reference.startsWith("git+https://") && !reference.startsWith("git+ssh://")) {
-    throw new AgentSnippetError(`Unsupported Git source. Use git+https:// or git+ssh://: ${redactUrl(reference)}`);
+    throw safeAgentSnippetError(`Unsupported Git source. Use git+https:// or git+ssh://: ${redactUrl(reference)}`);
   }
 
   const withoutPrefix = reference.slice(4);
@@ -221,8 +220,8 @@ export function parseGitSource(reference: string): ParsedGitSource {
     if (url.protocol !== "https:" && url.protocol !== "ssh:") {
       throw new Error("unsupported protocol");
     }
-  } catch {
-    throw invalidGitSource(reference);
+  } catch (error) {
+    throw invalidGitSource(reference, { cause: error });
   }
 
   const ref = selector.slice(0, colonIndex);
@@ -235,20 +234,21 @@ export function parseGitSource(reference: string): ParsedGitSource {
   };
 }
 
-function invalidGitSource(reference: string): AgentSnippetError {
-  return new AgentSnippetError(
+function invalidGitSource(reference: string, options?: ErrorOptions): AgentSnippetError {
+  return safeAgentSnippetError(
     `Invalid Git source ${redactUrl(reference)}. ` +
       "Expected git+<https-or-ssh-url>#<ref>:<repository-path>.",
+    options,
   );
 }
 
 export function normalizeRepositoryPath(filePath: string): string {
   if (!filePath || filePath.includes("\0") || filePath.startsWith("/")) {
-    throw new AgentSnippetError(`Invalid repository-relative path: ${filePath || "<empty>"}`);
+    throw safeAgentSnippetError(`Invalid repository-relative path: ${filePath || "<empty>"}`);
   }
   const normalized = posix.normalize(filePath);
   if (normalized === "." || normalized === ".." || normalized.startsWith("../")) {
-    throw new AgentSnippetError(`Git include escapes the repository: ${filePath}`);
+    throw safeAgentSnippetError(`Git include escapes the repository: ${filePath}`);
   }
   return normalized;
 }
@@ -270,30 +270,8 @@ export function redactUrl(value: string): string {
 }
 
 export function sanitizeGitError(message: string, repositoryUrl: string): string {
-  let sanitized = message.split(repositoryUrl).join(redactUrl(repositoryUrl));
-  try {
-    const url = new URL(repositoryUrl);
-    const secrets = [url.username, url.password, ...url.searchParams.values()];
-    for (const secret of secrets) {
-      if (!secret) continue;
-      for (const representation of secretRepresentations(secret)) {
-        sanitized = sanitized.split(representation).join("<redacted>");
-      }
-    }
-  } catch {
-    return "Git command failed with a redacted source URL.";
-  }
-  return sanitized;
-}
-
-function secretRepresentations(value: string): string[] {
-  const representations = new Set([value, encodeURIComponent(value)]);
-  try {
-    representations.add(decodeURIComponent(value));
-  } catch {
-    // Invalid percent encoding has no decoded representation.
-  }
-  return [...representations].filter(Boolean);
+  void message;
+  return `Git command failed for ${redactUrl(repositoryUrl)}.`;
 }
 
 function hash(value: string): string {
@@ -308,16 +286,48 @@ async function isBareRepository(cachePath: string): Promise<boolean> {
   try {
     const head = await stat(join(cachePath, "HEAD"));
     return head.isFile();
+  } catch (error) {
+    const code = safeErrorCode(error);
+    if (code === "ENOENT" || code === "ENOTDIR") return false;
+    throw safeAgentSnippetError(`Could not inspect the agentsnippet Git cache.`, {
+      cause: error,
+    });
+  }
+}
+
+class GitBackendError extends Error {
+  readonly code: number;
+  readonly stdout: Buffer;
+  readonly stderr: Buffer;
+
+  constructor(result: ProcessResult) {
+    super(`Git exited with status ${result.code}.`);
+    this.name = "GitBackendError";
+    this.code = result.code;
+    this.stdout = result.stdout;
+    this.stderr = result.stderr;
+  }
+}
+
+function gitBackendError(result: ProcessResult): GitBackendError {
+  return new GitBackendError(result);
+}
+
+function safeErrorCode(error: unknown): string | undefined {
+  try {
+    if (typeof error !== "object" || error === null) return undefined;
+    const code = Reflect.get(error, "code") as unknown;
+    return typeof code === "string" ? code : undefined;
   } catch {
-    return false;
+    return undefined;
   }
 }
 
 function decodeUtf8(buffer: Buffer, display: string): string {
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
-  } catch {
-    throw new AgentSnippetError(`Source is not valid UTF-8: ${display}`);
+  } catch (error) {
+    throw safeAgentSnippetError(`Source is not valid UTF-8: ${display}`, { cause: error });
   }
 }
 

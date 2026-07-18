@@ -5,6 +5,18 @@ export class AgentSnippetError extends Error {
   }
 }
 
+const safeErrors = new WeakSet<AgentSnippetError>();
+
+export function safeAgentSnippetError(message: string, options?: ErrorOptions): AgentSnippetError {
+  const error = new AgentSnippetError(message, options);
+  safeErrors.add(error);
+  return error;
+}
+
+export function isSafeAgentSnippetError(error: unknown): error is AgentSnippetError {
+  return error instanceof AgentSnippetError && safeErrors.has(error);
+}
+
 export class UsageError extends AgentSnippetError {
   constructor(message: string) {
     super(message);
