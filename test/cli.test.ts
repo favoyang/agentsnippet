@@ -97,6 +97,18 @@ describe("CLI", () => {
     ]);
   });
 
+  it("reports local snippet read failures consistently", async (context) => {
+    const directory = await temporaryDirectory(context);
+    await writeFile(
+      join(directory, "AGENTS.template.md"),
+      '<!-- @agentsnippet "./missing.md" -->\n',
+    );
+    const captured = captureIo(directory);
+    assert.equal(await runCli([], captured.io), 1);
+    assert.match(captured.stderr.join("\n"), /Could not read snippet "\.\/missing\.md"/);
+    assert.match(captured.stderr.join("\n"), /Local source does not exist/);
+  });
+
   it("runs through an npm-style symlinked executable", async (context) => {
     if (process.platform === "win32") context.skip("npm uses command shims instead of symlinks on Windows");
     const directory = await temporaryDirectory(context);

@@ -49,10 +49,15 @@ repository. Full 40- or 64-character commit IDs are reused from the local cache;
 other refs are fetched on each process run. Git authentication is inherited from
 the user's normal Git configuration.
 
-Every other source is a local filesystem path. Paths beginning with `~/` are
-resolved from the user's home directory; other relative paths are resolved from
-the file containing the directive. Absolute and nested local paths use normal
-filesystem semantics.
+Every other source is a local filesystem path. Paths beginning with `@/` are
+resolved from the magic folder `~/.agents/agentsnippets` when the containing
+source is local; HTTP and Git sources cannot use the magic folder. Paths
+beginning with `~/` are resolved from the user's home directory. Other relative
+paths are resolved from the file containing the directive. Absolute and nested
+local paths use normal filesystem semantics. Local, HTTP, and Git resolution
+failures are reported uniformly as snippet-read errors with safe diagnostic
+categories or allowlisted codes and an include trace; raw backend messages
+remain only in internal error causes.
 
 ## CLI
 

@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { findIncludeDirectives } from "./directives.js";
-import { AgentSnippetError, TracedIncludeError } from "./errors.js";
+import { AgentSnippetError, TracedIncludeError, isSafeAgentSnippetError } from "./errors.js";
 import { redactUrl } from "./git-source.js";
 import { SourceResolver } from "./sources.js";
 import {
@@ -64,7 +64,9 @@ async function expand(
       chunks.push(consumedLineEnding && !expanded.endsWith("\n") ? `${expanded}\n` : expanded);
     } catch (error) {
       if (error instanceof TracedIncludeError) throw error;
-      const message = error instanceof Error ? error.message : String(error);
+      const message = isSafeAgentSnippetError(error)
+        ? error.message
+        : "Backend source read failed.";
       throw new TracedIncludeError(
         `${message}\nInclude chain:\n${formatTrace(
           activeStack,
@@ -73,7 +75,7 @@ async function expand(
           directive.line,
           directive.source,
         )}`,
-        error instanceof Error ? { cause: error } : undefined,
+        { cause: error },
       );
     }
     cursor = directive.end;
@@ -99,7 +101,7 @@ function formatTrace(
 }
 
 function displayReference(reference: string, parentContext: SourceContext): string {
-  if (parentContext.kind === "http") {
+  if (parentContext.kind === "http" && !reference.startsWith("@/")) {
     try {
       return redactUrl(new URL(reference, parentContext.url).toString());
     } catch {

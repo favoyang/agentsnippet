@@ -52,6 +52,18 @@ Absolute paths and paths beginning with `~/` are also supported:
 <!-- @agentsnippet "~/projects/shared/testing.md" -->
 ```
 
+One convenient way to manage personal snippets is to store them in the magic
+folder `~/.agents/agentsnippets`. Use the `@/` prefix to include a file from
+that folder from any local template or nested local snippet:
+
+```md
+<!-- @agentsnippet "@/testing.md" -->
+```
+
+Here, `@/testing.md` means `~/.agents/agentsnippets/testing.md`. HTTP and Git
+snippets cannot use `@/`, so remote content cannot cause local magic-folder
+reads.
+
 ### HTTP URLs
 
 You can include a Markdown file directly from an HTTP URL:
@@ -89,9 +101,10 @@ Private repositories use your existing Git and SSH authentication:
 <!-- @agentsnippet "git+ssh://git@github.com/company/agent-snippets.git#main:internal/security.md" -->
 ```
 
-Snippets can include other snippets. If a source is missing, a cycle is
-detected, a directive is malformed, a Git path is unsafe, or a network request
-fails, generation stops and shows the include trace.
+Snippets can include other snippets. If a snippet cannot be read from a local
+file, HTTP URL, or Git URL, generation stops with a consistent snippet-read
+error, a safe diagnostic category or allowlisted code, and the include trace. Cycles, malformed
+directives, unsafe Git paths, and other resolution errors also stop generation.
 
 ## Choose a directory
 

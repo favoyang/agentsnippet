@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { parseGitSource, sanitizeGitError } from "../src/git-source.js";
@@ -28,9 +28,13 @@ describe("Git sources", () => {
         .repositoryDisplay,
       /token|secret/,
     );
+    assert.throws(() => parseGitSource("git+http://example.com/agents.git#main:snippet.md"), /Unsupported Git source/);
     assert.throws(
-      () => parseGitSource("git+http://example.com/agents.git#main:snippet.md"),
-      /Unsupported Git source/,
+      () => parseGitSource("git+https://[invalid#main:snippet.md"),
+      (error: unknown) => {
+        assert(error instanceof Error && error.cause instanceof TypeError);
+        return true;
+      },
     );
     assert.throws(
       () => parseGitSource("git+https://example.com/agents.git#main:../secret.md"),
@@ -44,7 +48,35 @@ describe("Git sources", () => {
       "fatal: unable to access 'https://example.com/agents.git?token=query-secret/': authentication failed for user";
     const sanitized = sanitizeGitError(message, repositoryUrl);
     assert.doesNotMatch(sanitized, /user|password|query-secret/);
-    assert.match(sanitized, /<redacted>/);
+    assert.match(sanitized, /Git command failed/);
+  });
+
+  it("preserves non-absence Git cache inspection failures as causes", async (context) => {
+    if (process.platform === "win32") context.skip("symlink creation requires additional privileges");
+    const directory = await temporaryDirectory(context);
+    const cacheDirectory = join(directory, "cache");
+    const repositoryUrl = "https://example.invalid/agents.git";
+    const cacheRepository = join(
+      cacheDirectory,
+      "git",
+      createHash("sha256").update(repositoryUrl).digest("hex"),
+    );
+    await mkdir(cacheRepository, { recursive: true });
+    await symlink("HEAD", join(cacheRepository, "HEAD"));
+    const resolver = new SourceResolver({ cacheDirectory });
+
+    await assert.rejects(
+      resolver.resolve(`git+${repositoryUrl}#main:snippet.md`, {
+        kind: "local",
+        filePath: join(directory, "AGENTS.template.md"),
+      }),
+      (error: unknown) => {
+        assert.match(String(error), /Could not inspect the agentsnippet Git cache/);
+        assert(error instanceof Error && error.cause instanceof Error);
+        assert.equal((error.cause.cause as NodeJS.ErrnoException).code, "ELOOP");
+        return true;
+      },
+    );
   });
 
   it("reads a pinned Git blob from cache and expands nested repository files", async (context) => {
@@ -83,6 +115,15 @@ describe("Git sources", () => {
     const resolver = new SourceResolver({ cacheDirectory });
     const output = await renderTemplate(join(directory, "AGENTS.template.md"), resolver);
     assert.equal(output.content, "# Git source\n\n## Nested\n\nPinned content.\n");
+
+    await writeFile(
+      join(directory, "AGENTS.template.md"),
+      `<!-- @agentsnippet "git+${repositoryUrl}#${commit}:snippets/missing.md" -->\n`,
+    );
+    await assert.rejects(
+      renderTemplate(join(directory, "AGENTS.template.md"), resolver),
+      /Could not read snippet .*Git source does not contain/,
+    );
 
     await assert.rejects(
       resolver.git.resolve(`git+${repositoryUrl}#${commit}:snippets/link.md`),

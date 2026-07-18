@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { AgentSnippetError } from "./errors.js";
+import { safeAgentSnippetError } from "./errors.js";
 
 export interface ProcessResult {
   code: number;
@@ -56,16 +56,16 @@ export async function runProcess(
     child.stderr.on("data", collect(stderr));
     child.on("error", (error) => {
       if (timer) clearTimeout(timer);
-      reject(new AgentSnippetError(`Could not start ${command}: ${error.message}`));
+      reject(safeAgentSnippetError(`Could not start ${command}.`, { cause: error }));
     });
     child.on("close", (code) => {
       if (timer) clearTimeout(timer);
       if (timedOut) {
-        reject(new AgentSnippetError(`${command} timed out.`));
+        reject(safeAgentSnippetError(`${command} timed out.`));
         return;
       }
       if (outputExceeded) {
-        reject(new AgentSnippetError(`${command} produced too much output.`));
+        reject(safeAgentSnippetError(`${command} produced too much output.`));
         return;
       }
       resolve({
