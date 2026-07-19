@@ -1,0 +1,4 @@
+interface:
+  display_name: "AgentSnippet"
+  short_description: "Manage reusable agent instruction snippets"
+  default_prompt: "Use $agentsnippet to update reusable agent instructions and regenerate their outputs."

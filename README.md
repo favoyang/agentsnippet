@@ -153,6 +153,19 @@ For CI, pin the package version so the check uses the same release every time:
 - run: npx --yes agentsnippet@0.1.3 --check -r
 ```
 
+## Agent skill
+
+This repository also provides an optional agent skill for maintaining
+agentsnippet templates and generated instructions. Install it globally for
+Codex with:
+
+```bash
+npx skills add favoyang/agentsnippet --skill agentsnippet --global --agent codex --yes
+```
+
+The skill is installed from this GitHub repository. It is not included in the
+agentsnippet npm package.
+
 ## Spec
 
 See [SPEC.md](./SPEC.md) for the v1 behavior and limits.

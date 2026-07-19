@@ -18,7 +18,10 @@ const forbidden = files.filter(
     file === "test" ||
     file.startsWith("test/") ||
     file === "src" ||
-    file.startsWith("src/"),
+    file.startsWith("src/") ||
+    file === "SKILL.md" ||
+    file === "agents" ||
+    file.startsWith("agents/"),
 );
 if (forbidden.length > 0) {
   throw new Error(`Packed npm artifact contains repository-only files: ${forbidden.join(", ")}`);
