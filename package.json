@@ -1,7 +1,7 @@
 {
   "name": "agentsnippet",
   "version": "0.1.2",
-  "description": "Expand reusable snippets into standard AGENTS.md files.",
+  "description": "Expand reusable snippets into AGENTS.md and CLAUDE.md files.",
   "type": "module",
   "bin": {
     "agentsnippet": "dist/cli.js"
@@ -25,6 +25,7 @@
   },
   "keywords": [
     "agents-md",
+    "claude-md",
     "markdown",
     "include",
     "cli"

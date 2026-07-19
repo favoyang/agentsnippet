@@ -1,11 +1,11 @@
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { findIncludeDirectives } from "./directives.js";
 import { AgentSnippetError, TracedIncludeError, isSafeAgentSnippetError } from "./errors.js";
 import { redactUrl } from "./git-source.js";
 import { SourceResolver } from "./sources.js";
 import {
   MAX_INCLUDE_DEPTH,
-  OUTPUT_NAME,
+  outputNameForTemplate,
   type RenderedOutput,
   type SourceContext,
   type SourceDocument,
@@ -20,11 +20,15 @@ export async function renderTemplate(
   templatePath: string,
   resolver = new SourceResolver(),
 ): Promise<RenderedOutput> {
+  const outputName = outputNameForTemplate(basename(templatePath));
+  if (!outputName) {
+    throw new AgentSnippetError(`Unsupported template name: ${basename(templatePath)}`);
+  }
   const root = await resolver.loadRoot(templatePath);
   const content = await expand(root, resolver, []);
   return {
     templatePath,
-    outputPath: join(templatePath, "..", OUTPUT_NAME),
+    outputPath: join(templatePath, "..", outputName),
     content: finalizeMarkdown(content),
   };
 }

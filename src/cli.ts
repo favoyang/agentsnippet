@@ -2,14 +2,14 @@
 
 import { realpathSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { relative, resolve } from "node:path";
+import { basename, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { discoverTemplates } from "./discovery.js";
 import { AgentSnippetError, UsageError } from "./errors.js";
 import { inspectOutputs, writeOutputsAtomically } from "./output.js";
 import { renderTemplate } from "./render.js";
 import { SourceResolver } from "./sources.js";
-import { TEMPLATE_NAME } from "./types.js";
+import { TEMPLATE_NAMES } from "./types.js";
 
 export interface CliIo {
   stdout(message: string): void;
@@ -27,13 +27,13 @@ interface CliOptions {
 
 const HELP = `Usage: agentsnippet [options] [directory]
 
-Expand AGENTS.template.md into a sibling AGENTS.md.
+Expand AGENTS.template.md and CLAUDE.template.md into sibling instruction files.
 
 Arguments:
   directory          Directory to process (default: current directory)
 
 Options:
-  -r, --recursive    Process nested AGENTS.template.md files
+  -r, --recursive    Process nested instruction templates
       --check        Verify outputs without writing files
   -h, --help         Show help
   -v, --version      Show version`;
@@ -71,7 +71,7 @@ export async function runCli(
       const suggestion = options.recursive ? "" : " Use -r to search subdirectories.";
       const displayedDirectory = displayPath(directory, io.cwd);
       const location = displayedDirectory === "." ? "the current directory" : `"${displayedDirectory}"`;
-      throw new AgentSnippetError(`No ${TEMPLATE_NAME} found in ${location}.${suggestion}`);
+      throw new AgentSnippetError(`No ${formatTemplateNames()} found in ${location}.${suggestion}`);
     }
 
     const resolver = new SourceResolver();
@@ -84,7 +84,7 @@ export async function runCli(
 
     if (options.check) {
       if (changed.length === 0) {
-        io.stdout(templates.length === 1 ? "AGENTS.md is up to date." : `${templates.length} AGENTS.md files are up to date.`);
+        io.stdout(currentMessage(rendered));
         return 0;
       }
       for (const output of changed) {
@@ -95,17 +95,36 @@ export async function runCli(
 
     await writeOutputsAtomically(statuses);
     if (changed.length === 0) {
-      io.stdout(templates.length === 1 ? "AGENTS.md is up to date." : `${templates.length} AGENTS.md files are up to date.`);
+      io.stdout(currentMessage(rendered));
     } else if (changed.length === 1) {
       io.stdout(`Generated ${displayPath(changed[0]!.outputPath, io.cwd)}.`);
     } else {
-      io.stdout(`Generated ${changed.length} AGENTS.md files.`);
+      io.stdout(generatedMessage(changed));
     }
     return 0;
   } catch (error) {
     io.stderr(`agentsnippet: ${error instanceof Error ? error.message : String(error)}`);
     return error instanceof UsageError ? 2 : 1;
   }
+}
+
+function formatTemplateNames(): string {
+  return `${TEMPLATE_NAMES.slice(0, -1).join(", ")} or ${TEMPLATE_NAMES.at(-1)}`;
+}
+
+function currentMessage(outputs: { outputPath: string }[]): string {
+  if (outputs.length === 1) return `${basename(outputs[0]!.outputPath)} is up to date.`;
+  if (outputs.every((output) => basename(output.outputPath) === "AGENTS.md")) {
+    return `${outputs.length} AGENTS.md files are up to date.`;
+  }
+  return `${outputs.length} instruction files are up to date.`;
+}
+
+function generatedMessage(outputs: { outputPath: string }[]): string {
+  if (outputs.every((output) => basename(output.outputPath) === "AGENTS.md")) {
+    return `Generated ${outputs.length} AGENTS.md files.`;
+  }
+  return `Generated ${outputs.length} instruction files.`;
 }
 
 function parseArguments(argv: string[]): CliOptions {

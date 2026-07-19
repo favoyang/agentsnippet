@@ -14,9 +14,17 @@ describe("local rendering", () => {
   it("identifies root-template read failures", async (context) => {
     const directory = await temporaryDirectory(context);
     await assert.rejects(
-      renderTemplate(join(directory, "missing.template.md")),
+      renderTemplate(join(directory, "AGENTS.template.md")),
       /Could not read root template .*Local source does not exist/,
     );
+  });
+
+  it("rejects unsupported template names", async (context) => {
+    const directory = await temporaryDirectory(context);
+    const template = join(directory, "OTHER.template.md");
+    await writeFile(template, "# Other\n");
+
+    await assert.rejects(renderTemplate(template), /Unsupported template name: OTHER\.template\.md/);
   });
 
   it("resolves paths beginning with ~/ from the home directory", () => {
@@ -166,6 +174,14 @@ describe("local rendering", () => {
     const output = await renderTemplate(join(directory, "AGENTS.template.md"));
     assert.equal(output.content, "# Project\n\n## Core\n\n## Testing\n\nRun tests.\n");
     assert.equal(output.outputPath, join(directory, "AGENTS.md"));
+  });
+
+  it("maps a Claude template to CLAUDE.md", async (context) => {
+    const directory = await temporaryDirectory(context);
+    await writeFile(join(directory, "CLAUDE.template.md"), "# Claude\n");
+
+    const output = await renderTemplate(join(directory, "CLAUDE.template.md"));
+    assert.equal(output.outputPath, join(directory, "CLAUDE.md"));
   });
 
   it("preserves malformed directive diagnostics from nested snippets", async (context) => {
