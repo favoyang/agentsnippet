@@ -26,7 +26,11 @@ export function findIncludeDirectives(markdown: string, display: string): Includ
   const directives: IncludeDirective[] = [];
   const seenLines = new Set<number>();
 
-  visit(tree, (node) => {
+  visit(tree, (node, ancestors) => {
+    if (ancestors.some((ancestor) => ancestor.type === "blockquote")) {
+      return;
+    }
+
     if (node.type !== "html" || !node.value?.includes("@agentsnippet") || !node.position) {
       return;
     }
@@ -74,9 +78,13 @@ function countNewlines(value: string): number {
   return value.split("\n").length - 1;
 }
 
-function visit(node: AstNode, callback: (node: AstNode) => void): void {
-  callback(node);
+function visit(
+  node: AstNode,
+  callback: (node: AstNode, ancestors: AstNode[]) => void,
+  ancestors: AstNode[] = [],
+): void {
+  callback(node, ancestors);
   for (const child of node.children ?? []) {
-    visit(child, callback);
+    visit(child, callback, [...ancestors, node]);
   }
 }

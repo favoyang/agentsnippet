@@ -237,6 +237,18 @@ describe("local rendering", () => {
     assert.equal(output.content, template);
   });
 
+  it("leaves directive examples in blockquotes untouched", async (context) => {
+    const directory = await temporaryDirectory(context);
+    const template = [
+      "> Some quoted documentation:",
+      '> <!-- @agentsnippet "./missing.md" -->',
+      "",
+    ].join("\n");
+    await writeFile(join(directory, "AGENTS.template.md"), template);
+    const output = await renderTemplate(join(directory, "AGENTS.template.md"));
+    assert.equal(output.content, template);
+  });
+
   it("allows repeated non-recursive includes", async (context) => {
     const directory = await temporaryDirectory(context);
     await writeFile(

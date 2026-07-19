@@ -28,9 +28,10 @@ An include directive is an HTML comment on a complete Markdown line:
 
 Horizontal whitespace around the comment and within the comment boundary is
 allowed. The source is non-empty and cannot contain a quote or newline.
-Directives are recognized as CommonMark HTML nodes, so examples in code spans,
-fenced code, and indented code are not expanded. An HTML comment containing
-`@agentsnippet` that does not match the grammar is an error.
+Directives are recognized as CommonMark HTML nodes, so examples in blockquotes,
+code spans, fenced code, and indented code are not expanded. Outside those
+contexts, an HTML comment containing `@agentsnippet` that does not match the
+grammar is an error.
 
 The directive line is replaced by the recursively expanded source. Cycles and
 include nesting beyond 32 active sources are errors. All text is decoded as
