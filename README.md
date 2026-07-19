@@ -157,10 +157,10 @@ For CI, pin the package version so the check uses the same release every time:
 
 This repository also provides an optional agent skill for maintaining
 agentsnippet templates and generated instructions. Install it globally for
-Codex with:
+detected coding agents such as Codex and Claude Code with:
 
 ```bash
-npx skills add favoyang/agentsnippet -g -a codex -y
+npx skills add favoyang/agentsnippet -g -y
 ```
 
 The skill is installed from this GitHub repository. It is not included in the
