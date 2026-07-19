@@ -160,7 +160,7 @@ agentsnippet templates and generated instructions. Install it globally for
 Codex with:
 
 ```bash
-npx skills add favoyang/agentsnippet --skill agentsnippet --global --agent codex --yes
+npx skills add favoyang/agentsnippet -g -a codex -y
 ```
 
 The skill is installed from this GitHub repository. It is not included in the
