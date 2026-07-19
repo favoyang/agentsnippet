@@ -1,6 +1,6 @@
 {
   "name": "agentsnippet",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Expand reusable snippets into AGENTS.md and CLAUDE.md files.",
   "type": "module",
   "bin": {

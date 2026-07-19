@@ -150,7 +150,7 @@ npx agentsnippet --check -r
 For CI, pin the package version so the check uses the same release every time:
 
 ```yaml
-- run: npx --yes agentsnippet@0.1.2 --check -r
+- run: npx --yes agentsnippet@0.1.3 --check -r
 ```
 
 ## Spec

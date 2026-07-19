@@ -29,6 +29,16 @@ describe("directive parsing", () => {
     assert.deepEqual(findIncludeDirectives(markdown, "template.md"), []);
   });
 
+  it("ignores directives in blockquotes", () => {
+    const markdown = [
+      "> Some quoted documentation:",
+      '> <!-- @agentsnippet "./quoted.md" -->',
+      "> <!-- @agentsnippet ./malformed.md -->",
+      "",
+    ].join("\n");
+    assert.deepEqual(findIncludeDirectives(markdown, "template.md"), []);
+  });
+
   it("rejects malformed directive comments", () => {
     assert.throws(
       () => findIncludeDirectives("<!-- @agentsnippet ./part.md -->\n", "template.md"),
