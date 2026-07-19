@@ -19,6 +19,17 @@ describe("template discovery", () => {
     ]);
   });
 
+  it("discovers AGENTS and CLAUDE templates in the same directory", async (context) => {
+    const directory = await temporaryDirectory(context);
+    await writeFile(join(directory, "AGENTS.template.md"), "agents\n");
+    await writeFile(join(directory, "CLAUDE.template.md"), "claude\n");
+
+    assert.deepEqual(await discoverTemplates(directory, false), [
+      join(directory, "AGENTS.template.md"),
+      join(directory, "CLAUDE.template.md"),
+    ]);
+  });
+
   it("honors Git ignore rules and does not follow directory symlinks", async (context) => {
     const directory = await temporaryDirectory(context);
     await git(directory, "init", "--quiet");
@@ -26,6 +37,7 @@ describe("template discovery", () => {
     await mkdir(join(directory, "ignored"));
     await writeFile(join(directory, ".gitignore"), "ignored/\n");
     await writeFile(join(directory, "kept", "AGENTS.template.md"), "kept\n");
+    await writeFile(join(directory, "kept", "CLAUDE.template.md"), "claude\n");
     await writeFile(join(directory, "ignored", "AGENTS.template.md"), "ignored\n");
     await symlink(join(directory, "kept"), join(directory, "linked"), "dir");
     await symlink(join(directory, "kept", "AGENTS.template.md"), join(directory, "AGENTS.template.md"), "file");
@@ -33,6 +45,7 @@ describe("template discovery", () => {
     assert.deepEqual(await discoverTemplates(directory, true), [
       join(directory, "AGENTS.template.md"),
       join(directory, "kept", "AGENTS.template.md"),
+      join(directory, "kept", "CLAUDE.template.md"),
     ]);
   });
 

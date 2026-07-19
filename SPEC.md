@@ -2,13 +2,21 @@
 
 ## Files
 
-`agentsnippet` reads `AGENTS.template.md` and writes `AGENTS.md` beside it. The
-template is authoritative. Generated output contains expanded Markdown only.
+`agentsnippet` recognizes these template and output pairs:
 
-Without `-r`, exactly one template is selected in the requested directory. With
-`-r`, the starting directory and its descendants are searched. Git ignore rules
-are honored when available, `.git` is always skipped, and directory symlinks are
-not followed.
+| Template | Output |
+| --- | --- |
+| `AGENTS.template.md` | `AGENTS.md` |
+| `CLAUDE.template.md` | `CLAUDE.md` |
+
+Each output is written beside its template. If both templates exist in one
+directory, both are processed. Templates are authoritative, and generated
+outputs contain expanded Markdown only.
+
+Without `-r`, all recognized templates in the requested directory are selected.
+With `-r`, the starting directory and its descendants are searched. Git ignore
+rules are honored when available, `.git` is always skipped, and directory
+symlinks are not followed.
 
 ## Directive
 

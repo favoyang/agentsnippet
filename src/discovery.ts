@@ -2,7 +2,9 @@ import { lstat, readdir, realpath, stat } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { AgentSnippetError } from "./errors.js";
 import { runProcess } from "./process.js";
-import { TEMPLATE_NAME } from "./types.js";
+import { TEMPLATE_NAMES } from "./types.js";
+
+const templateNames = new Set(TEMPLATE_NAMES);
 
 export async function discoverTemplates(directory: string, recursive: boolean): Promise<string[]> {
   const requestedTarget = resolve(directory);
@@ -19,13 +21,18 @@ export async function discoverTemplates(directory: string, recursive: boolean): 
   const canonicalTarget = await realpath(requestedTarget);
 
   if (!recursive) {
-    const template = join(target, TEMPLATE_NAME);
-    try {
-      const templateMetadata = await stat(template);
-      return templateMetadata.isFile() ? [template] : [];
-    } catch {
-      return [];
-    }
+    const templates = await Promise.all(
+      TEMPLATE_NAMES.map(async (templateName) => {
+        const template = join(target, templateName);
+        try {
+          const templateMetadata = await stat(template);
+          return templateMetadata.isFile() ? template : undefined;
+        } catch {
+          return undefined;
+        }
+      }),
+    );
+    return templates.filter((template): template is string => template !== undefined).sort(comparePaths);
   }
 
   const gitTemplates = await discoverWithGit(target, canonicalTarget);
@@ -71,7 +78,7 @@ async function discoverWithGit(target: string, canonicalTarget: string): Promise
           templates.add(resolve(target, relative(canonicalTarget, nestedTemplate)));
         }
       } else if (
-        basename(repositoryPath) === TEMPLATE_NAME &&
+        templateNames.has(basename(repositoryPath)) &&
         (metadata.isFile() || (metadata.isSymbolicLink() && (await stat(absolute)).isFile()))
       ) {
         templates.add(resolve(target, relative(canonicalTarget, absolute)));
@@ -105,7 +112,7 @@ async function walk(directory: string, templates: string[]): Promise<void> {
       } else {
         await walk(entryPath, templates);
       }
-    } else if (entry.name === TEMPLATE_NAME && (entry.isFile() || entry.isSymbolicLink())) {
+    } else if (templateNames.has(entry.name) && (entry.isFile() || entry.isSymbolicLink())) {
       try {
         if ((await stat(entryPath)).isFile()) templates.push(entryPath);
       } catch {

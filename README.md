@@ -1,8 +1,8 @@
 # agentsnippet
 
-`agentsnippet` lets you reuse Markdown snippets in `AGENTS.md`. Add includes to
-`AGENTS.template.md`, then generate a normal `AGENTS.md` that works with any
-coding agent. No configuration file is needed.
+`agentsnippet` lets you reuse Markdown snippets in coding-agent instruction
+files. Add includes to `AGENTS.template.md` or `CLAUDE.template.md`, then
+generate a normal `AGENTS.md` or `CLAUDE.md`. No configuration file is needed.
 
 ## Quick start
 
@@ -30,6 +30,17 @@ npx agentsnippet
 
 This writes `AGENTS.md` next to the template. Run the same command whenever the
 template or one of its snippets changes.
+
+For Claude Code, create `CLAUDE.template.md` instead:
+
+```md
+# Claude Code instructions
+
+<!-- @agentsnippet "./.agents/core.md" -->
+```
+
+The same command writes `CLAUDE.md` next to that template. If a directory has
+both template names, both outputs are generated in one run.
 
 Node.js 20 or newer is required. Git is only needed when a template includes a
 Git source.
@@ -108,8 +119,9 @@ directives, unsafe Git paths, and other resolution errors also stop generation.
 
 ## Choose a directory
 
-By default, `agentsnippet` only looks for `AGENTS.template.md` in the current
-directory. Pass another directory to work there instead:
+By default, `agentsnippet` looks for `AGENTS.template.md` and
+`CLAUDE.template.md` in the current directory. Pass another directory to work
+there instead:
 
 ```bash
 npx agentsnippet packages/sdk
@@ -127,8 +139,8 @@ expanded recursively.
 
 ## Check generated files
 
-Use `--check` to verify that every output matches its template without writing
-any files:
+Use `--check` to verify that every `AGENTS.md` and `CLAUDE.md` output matches
+its template without writing any files:
 
 ```bash
 npx agentsnippet --check

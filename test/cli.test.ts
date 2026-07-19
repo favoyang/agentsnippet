@@ -34,7 +34,49 @@ describe("CLI", () => {
 
     const recursive = captureIo(directory);
     assert.equal(await runCli(["-r"], recursive.io), 0);
+    assert.deepEqual(recursive.stdout, ["Generated nested/AGENTS.md."]);
     assert.equal(await readFile(join(directory, "nested", "AGENTS.md"), "utf8"), "# Nested\n");
+  });
+
+  it("preserves plural messages for AGENTS-only recursive runs", async (context) => {
+    const directory = await temporaryDirectory(context);
+    await mkdir(join(directory, "nested"));
+    await writeFile(join(directory, "AGENTS.template.md"), "# Root\n");
+    await writeFile(join(directory, "nested", "AGENTS.template.md"), "# Nested\n");
+
+    const generated = captureIo(directory);
+    assert.equal(await runCli(["-r"], generated.io), 0);
+    assert.deepEqual(generated.stdout, ["Generated 2 AGENTS.md files."]);
+
+    const check = captureIo(directory);
+    assert.equal(await runCli(["--check", "-r"], check.io), 0);
+    assert.deepEqual(check.stdout, ["2 AGENTS.md files are up to date."]);
+  });
+
+  it("generates CLAUDE.md from CLAUDE.template.md", async (context) => {
+    const directory = await temporaryDirectory(context);
+    await writeFile(join(directory, "CLAUDE.template.md"), "# Claude instructions\n");
+
+    const captured = captureIo(directory);
+    assert.equal(await runCli([], captured.io), 0);
+    assert.deepEqual(captured.stdout, ["Generated CLAUDE.md."]);
+    assert.equal(await readFile(join(directory, "CLAUDE.md"), "utf8"), "# Claude instructions\n");
+  });
+
+  it("generates AGENTS.md and CLAUDE.md together", async (context) => {
+    const directory = await temporaryDirectory(context);
+    await writeFile(join(directory, "AGENTS.template.md"), "# Shared instructions\n");
+    await writeFile(join(directory, "CLAUDE.template.md"), "# Claude instructions\n");
+
+    const captured = captureIo(directory);
+    assert.equal(await runCli([], captured.io), 0);
+    assert.deepEqual(captured.stdout, ["Generated 2 instruction files."]);
+    assert.equal(await readFile(join(directory, "AGENTS.md"), "utf8"), "# Shared instructions\n");
+    assert.equal(await readFile(join(directory, "CLAUDE.md"), "utf8"), "# Claude instructions\n");
+
+    const check = captureIo(directory);
+    assert.equal(await runCli(["--check"], check.io), 0);
+    assert.deepEqual(check.stdout, ["2 instruction files are up to date."]);
   });
 
   it("accepts an optional working directory", async (context) => {
@@ -93,7 +135,7 @@ describe("CLI", () => {
     const missing = captureIo(directory);
     assert.equal(await runCli([], missing.io), 1);
     assert.deepEqual(missing.stderr, [
-      "agentsnippet: No AGENTS.template.md found in the current directory. Use -r to search subdirectories.",
+      "agentsnippet: No AGENTS.template.md or CLAUDE.template.md found in the current directory. Use -r to search subdirectories.",
     ]);
   });
 

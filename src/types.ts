@@ -1,5 +1,8 @@
-export const TEMPLATE_NAME = "AGENTS.template.md";
-export const OUTPUT_NAME = "AGENTS.md";
+export const TEMPLATE_OUTPUT_NAMES = {
+  "AGENTS.template.md": "AGENTS.md",
+  "CLAUDE.template.md": "CLAUDE.md",
+} as const;
+export const TEMPLATE_NAMES = Object.keys(TEMPLATE_OUTPUT_NAMES);
 export const MAX_INCLUDE_DEPTH = 32;
 export const MAX_SOURCE_BYTES = 1024 * 1024;
 export const HTTP_TIMEOUT_MS = 15_000;
@@ -37,4 +40,8 @@ export interface RenderedOutput {
   templatePath: string;
   outputPath: string;
   content: string;
+}
+
+export function outputNameForTemplate(templateName: string): string | undefined {
+  return TEMPLATE_OUTPUT_NAMES[templateName as keyof typeof TEMPLATE_OUTPUT_NAMES];
 }
