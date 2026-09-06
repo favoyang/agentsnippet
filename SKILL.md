@@ -1,6 +1,6 @@
 ---
 name: agentsnippet
-description: Manage reusable coding-agent instructions with the agentsnippet CLI. Use when creating, editing, sharing, generating, or validating AGENTS.md or CLAUDE.md instructions; when a repository contains AGENTS.template.md, CLAUDE.template.md, or @agentsnippet directives; or when generated instruction files may be stale or edited directly.
+description: "Create, regenerate, or check AGENTS.md and CLAUDE.md instructions with agentsnippet templates and reusable includes. Use when editing instruction sources or diagnosing stale generated outputs."
 ---
 
 # Manage instructions with agentsnippet
